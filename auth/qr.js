@@ -11,7 +11,6 @@ const pino = require('pino')
 const fs = require('fs')
 const path = require('path')
 const qrcode = require('qrcode')
-const { handleCommand } = require('./commands')
 
 const SESSIONS_DIR = path.join(__dirname, '..', 'sessions')
 const logger = pino({ level: 'silent' })
@@ -87,12 +86,13 @@ async function createSessionViaQR(number) {
     }
   })
 
-  // Listen for commands on every message
+  // Listen for commands on every message - Using _loader instead of commands
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
     for (const msg of messages) {
       try {
-        await handleCommand(msg, sock, sessions)
+        const { handleIncomingMessage } = require('../plugins/_loader')
+        await handleIncomingMessage(sock, msg, sessions)
       } catch (e) {
         console.error('[SESSION] handleCommand error:', e.message)
       }
@@ -157,7 +157,8 @@ async function createSessionViaPairing(number) {
         if (type !== 'notify') return
         for (const msg of messages) {
           try {
-            await handleCommand(msg, sock, sessions)
+            const { handleIncomingMessage } = require('../plugins/_loader')
+            await handleIncomingMessage(sock, msg, sessions)
           } catch (e) {
             console.error('[SESSION] handleCommand error:', e.message)
           }
@@ -216,4 +217,4 @@ module.exports = {
   createSessionViaQR, 
   createSessionViaPairing, 
   restoreAllSessions 
-}
+    }
