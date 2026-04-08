@@ -1,21 +1,35 @@
 const {
-  makeWASocket,
+  default: makeWASocket,
+  useMultiFileAuthState,
   DisconnectReason,
   delay,
   fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys')
+
 const { Boom } = require('@hapi/boom')
 const pino = require('pino')
+const fs = require('fs')
+const path = require('path')
 const qrcode = require('qrcode')
-const { sessions, qrStore, loadAuthState, removeSessionDir } = require('./session-store')
-const { handleIncomingMessage } = require('../plugins/_loader')
 
+const SESSIONS_DIR = path.join(__dirname, '..', 'sessions')
 const logger = pino({ level: 'silent' })
 
-async function createSessionViaQR(number) {
-  if (sessions.has(number)) return sessions.get(number)
+// Global maps
+const sessions = new Map()
+const qrStore = new Map()
 
-  const { state, saveCreds } = await loadAuthState(number)
+// ── CREATE / RESTORE A SESSION ──
+async function createSessionViaQR(number) {
+  if (sessions.has(number)) {
+    console.log(`[SESSION] Already connected: ${number}`)
+    return sessions.get(number)
+  }
+
+  const sessDir = path.join(SESSIONS_DIR, number)
+  if (!fs.existsSync(sessDir)) fs.mkdirSync(sessDir, { recursive: true })
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessDir)
   const { version } = await fetchLatestBaileysVersion()
 
   const sock = makeWASocket({
@@ -23,10 +37,12 @@ async function createSessionViaQR(number) {
     auth: state,
     logger,
     printQRInTerminal: false,
-    browser: ['PRECIOUS-MD', 'Chrome', '3.0.0'],
+    browser: ['Precious MD', 'Chrome', '3.0.0'],
     connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 0,
     keepAliveIntervalMs: 10000,
-    markOnlineOnConnect: false
+    markOnlineOnConnect: false,
+    syncFullHistory: false
   })
 
   sock.ev.on('creds.update', saveCreds)
@@ -34,35 +50,39 @@ async function createSessionViaQR(number) {
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
+    // QR generated
     if (qr) {
-      const base64 = await qrcode.toDataURL(qr)
-      qrStore.set(number, base64)
-      console.log(`[QR] Generated for ${number}`)
+      try {
+        const base64 = await qrcode.toDataURL(qr)
+        qrStore.set(number, base64)
+        console.log(`[SESSION] QR ready: ${number}`)
+      } catch (e) {
+        console.error('[SESSION] QR error:', e.message)
+      }
     }
 
+    // Connected
     if (connection === 'open') {
-      console.log(`[QR] ✅ Connected: ${number}`)
+      console.log(`[SESSION] ✅ Connected: ${number}`)
       sessions.set(number, sock)
       qrStore.delete(number)
     }
 
+    // Disconnected
     if (connection === 'close') {
       const code = new Boom(lastDisconnect?.error)?.output?.statusCode
+      console.log(`[SESSION] ❌ Disconnected: ${number} code=${code}`)
       sessions.delete(number)
+
       if (code !== DisconnectReason.loggedOut) {
-        console.log(`[QR] Reconnecting ${number}...`)
+        console.log(`[SESSION] 🔄 Reconnecting: ${number}`)
         await delay(4000)
         createSessionViaQR(number)
       } else {
-        await removeSessionDir(number)
+        // Logged out — delete session files
+        console.log(`[SESSION] 🚫 Logged out, removing: ${number}`)
+        fs.rmSync(sessDir, { recursive: true, force: true })
       }
-    }
-  })
-
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
-    for (const msg of messages) {
-      await handleIncomingMessage(msg, sock, number)
     }
   })
 
@@ -70,4 +90,105 @@ async function createSessionViaQR(number) {
   return sock
 }
 
-module.exports = { createSessionViaQR }
+// ── PAIRING CODE FLOW ──
+async function createSessionViaPairing(number) {
+  if (sessions.has(number)) {
+    throw new Error('Number already connected!')
+  }
+
+  const sessDir = path.join(SESSIONS_DIR, number)
+  if (!fs.existsSync(sessDir)) fs.mkdirSync(sessDir, { recursive: true })
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessDir)
+  const { version } = await fetchLatestBaileysVersion()
+
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    logger,
+    printQRInTerminal: false,
+    browser: ['Precious MD', 'Chrome', '3.0.0'],
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 0,
+    keepAliveIntervalMs: 10000,
+    markOnlineOnConnect: false,
+    syncFullHistory: false
+  })
+
+  sock.ev.on('creds.update', saveCreds)
+
+  let pairCode = null
+  let codeDone = false
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update
+
+    // Request pairing code once
+    if (!codeDone && !sock.authState.creds.registered) {
+      codeDone = true
+      await delay(1500)
+      try {
+        pairCode = await sock.requestPairingCode(number)
+        console.log(`[SESSION] Pair code for ${number}: ${pairCode}`)
+      } catch (e) {
+        console.error('[SESSION] requestPairingCode error:', e.message)
+      }
+    }
+
+    if (connection === 'open') {
+      console.log(`[SESSION] ✅ Paired: ${number}`)
+      sessions.set(number, sock)
+    }
+
+    if (connection === 'close') {
+      const code = new Boom(lastDisconnect?.error)?.output?.statusCode
+      sessions.delete(number)
+      if (code !== DisconnectReason.loggedOut) {
+        await delay(4000)
+        createSessionViaQR(number)
+      } else {
+        fs.rmSync(sessDir, { recursive: true, force: true })
+      }
+    }
+  })
+
+  // Wait up to 20s for pairing code
+  for (let i = 0; i < 40; i++) {
+    await delay(500)
+    if (pairCode) break
+  }
+
+  if (!pairCode) throw new Error('Could not generate pairing code. Try again.')
+  return pairCode
+}
+
+// ── RESTORE ALL SAVED SESSIONS ON STARTUP ──
+async function restoreAllSessions() {
+  if (!fs.existsSync(SESSIONS_DIR)) {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true })
+    return
+  }
+
+  const folders = fs.readdirSync(SESSIONS_DIR).filter(f =>
+    fs.statSync(path.join(SESSIONS_DIR, f)).isDirectory()
+  )
+
+  console.log(`[SESSION] Restoring ${folders.length} session(s)...`)
+
+  for (const num of folders) {
+    try {
+      await createSessionViaQR(num)
+      await delay(2500)
+    } catch (e) {
+      console.error(`[SESSION] Failed to restore ${num}:`, e.message)
+    }
+  }
+}
+
+module.exports = { 
+  sessions, 
+  qrStore, 
+  createSessionViaQR, 
+  createSessionViaPairing, 
+  restoreAllSessions 
+}
