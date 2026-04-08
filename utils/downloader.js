@@ -1,8 +1,7 @@
-const { exec } = require('child_process');
-const util = require('util');
+const ytdl = require('ytdl-core');
 const fs = require('fs-extra');
 const path = require('path');
-const execPromise = util.promisify(exec);
+const { spawn } = require('child_process');
 
 async function downloadYouTube(url, format = 'mp3') {
     try {
@@ -12,14 +11,35 @@ async function downloadYouTube(url, format = 'mp3') {
         const timestamp = Date.now();
         const outputPath = path.join(outputDir, `${timestamp}.${format === 'mp3' ? 'mp3' : 'mp4'}`);
         
-        let command;
         if (format === 'mp3') {
-            command = `yt-dlp -x --audio-format mp3 --audio-quality 128K -o "${outputPath}" "${url}"`;
+            // Download as MP3 using ffmpeg
+            const audioStream = ytdl(url, { quality: 'highestaudio' });
+            const ffmpeg = spawn('ffmpeg', [
+                '-i', 'pipe:0',
+                '-acodec', 'libmp3lame',
+                '-ab', '128k',
+                outputPath
+            ]);
+            
+            audioStream.pipe(ffmpeg.stdin);
+            
+            await new Promise((resolve, reject) => {
+                ffmpeg.on('close', resolve);
+                ffmpeg.on('error', reject);
+                audioStream.on('error', reject);
+            });
         } else {
-            command = `yt-dlp -f "best[height<=720]" -o "${outputPath}" "${url}"`;
+            // Download as MP4
+            const videoStream = ytdl(url, { quality: 'highestvideo' });
+            const writeStream = fs.createWriteStream(outputPath);
+            videoStream.pipe(writeStream);
+            
+            await new Promise((resolve, reject) => {
+                writeStream.on('finish', resolve);
+                writeStream.on('error', reject);
+                videoStream.on('error', reject);
+            });
         }
-        
-        await execPromise(command);
         
         if (await fs.pathExists(outputPath)) {
             const buffer = await fs.readFile(outputPath);
