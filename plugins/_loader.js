@@ -53,11 +53,32 @@ async function handleIncomingMessage(sock, msg, sessionMap) {
       msg.message?.imageMessage?.caption ||
       ''
     
+    const from = msg.key.remoteJid
+    const sender = (msg.key.participant || msg.key.remoteJid || '').replace('@s.whatsapp.net', '')
+    
+    // ✅ ADDED: AutoReact feature (reacts to ALL messages, even non-commands)
+    try {
+      const sessionNumber = sessionMap ? [...sessionMap.keys()][0] : null
+      if (sessionNumber) {
+        const autoreact = require('../plugins/automation/autoreact')
+        const reactEmoji = autoreact.getAutoReact && autoreact.getAutoReact(sessionNumber)
+        
+        if (reactEmoji && reactEmoji !== 'off') {
+          await sock.sendMessage(from, { 
+            react: { 
+              text: reactEmoji, 
+              key: msg.key 
+            } 
+          }).catch(err => console.log('AutoReact error:', err.message))
+        }
+      }
+    } catch (err) {
+      // Silent fail for autoreact
+    }
+    
     // Only respond to messages starting with .
     if (!body.startsWith('.')) return
 
-    const from = msg.key.remoteJid
-    const sender = (msg.key.participant || msg.key.remoteJid || '').replace('@s.whatsapp.net', '')
     const parts = body.trim().split(/\s+/)
     let cmdName = parts[0].toLowerCase().slice(1)
     
@@ -71,14 +92,19 @@ async function handleIncomingMessage(sock, msg, sessionMap) {
       return
     }
 
-    // React to message if emoji specified
+    // React to message if emoji specified in command
     if (command.reactEmoji) {
       await reactToMessage(sock, msg, command.reactEmoji)
     }
 
-    // Execute command
+    // ✅ FIXED: Execute command (supports both 'execute' and 'exec')
     try {
-      await command.execute(sock, msg, {
+      const cmdFunc = command.execute || command.exec
+      if (!cmdFunc) {
+        throw new Error(`Command ${cmdName} has no execute/exec method`)
+      }
+      
+      await cmdFunc(sock, msg, {
         from,
         sender,
         args: parts.slice(1),
