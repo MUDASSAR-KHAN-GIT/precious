@@ -81,7 +81,7 @@ async function createSessionViaQR(number) {
     }
   })
 
-  // Command handler
+  // Main Command handler
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
     for (const msg of messages) {
@@ -93,11 +93,10 @@ async function createSessionViaQR(number) {
     }
   })
 
-  // ✅ AUTO-VIEW STATUS HANDLER
+  // ✅ AUTO-VIEW STATUS HANDLER with 🍂 reaction
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const m of messages) {
       try {
-        // Check if it's a status update (type 7)
         if (m.message?.protocolMessage?.type === 7) {
           const { isEnabled } = require('../plugins/automation/autoview')
           if (isEnabled && isEnabled(number)) {
@@ -105,12 +104,46 @@ async function createSessionViaQR(number) {
             await sock.sendMessage(m.key.remoteJid, { 
               react: { text: '🍂', key: m.key } 
             }).catch(() => {})
-            console.log(`[AUTOVIEW] Viewed status for ${number}`)
+            console.log(`[AUTOVIEW] Viewed status for ${number} with 🍂`)
           }
         }
       } catch (e) {
         // Silent fail
       }
+    }
+  })
+
+  // ✅ WELCOME / GOODBYE HANDLER
+  sock.ev.on('group-participants.update', async (update) => {
+    const { id, participants, action } = update
+    
+    try {
+      const welcome = require('../plugins/group/welcome')
+      const goodbye = require('../plugins/group/goodbye')
+      
+      if (action === 'add' && welcome.isEnabled && welcome.isEnabled(id)) {
+        for (const participant of participants) {
+          const name = participant.split('@')[0]
+          await sock.sendMessage(id, { 
+            text: `👋 *Welcome!* @${name}\n\nWelcome to the group! Enjoy your stay. 🎉\n\n📌 Read group rules and have fun!`,
+            mentions: [participant]
+          }).catch(() => {})
+          console.log(`[WELCOME] Welcomed ${name} to ${id}`)
+        }
+      }
+      
+      if (action === 'remove' && goodbye.isEnabled && goodbye.isEnabled(id)) {
+        for (const participant of participants) {
+          const name = participant.split('@')[0]
+          await sock.sendMessage(id, { 
+            text: `👋 *Goodbye!* @${name}\n\nWe'll miss you! Take care. 👋`,
+            mentions: [participant]
+          }).catch(() => {})
+          console.log(`[GOODBYE] Said goodbye to ${name} from ${id}`)
+        }
+      }
+    } catch (err) {
+      console.error('[GROUP-EVENTS] Error:', err.message)
     }
   })
 
@@ -188,10 +221,42 @@ async function createSessionViaPairing(number) {
                 await sock.sendMessage(m.key.remoteJid, { 
                   react: { text: '🍂', key: m.key } 
                 }).catch(() => {})
-                console.log(`[AUTOVIEW] Viewed status for ${number}`)
+                console.log(`[AUTOVIEW] Viewed status for ${number} with 🍂`)
               }
             }
           } catch (e) {}
+        }
+      })
+
+      // ✅ WELCOME/GOODBYE for paired session
+      sock.ev.on('group-participants.update', async (update) => {
+        const { id, participants, action } = update
+        
+        try {
+          const welcome = require('../plugins/group/welcome')
+          const goodbye = require('../plugins/group/goodbye')
+          
+          if (action === 'add' && welcome.isEnabled && welcome.isEnabled(id)) {
+            for (const participant of participants) {
+              const name = participant.split('@')[0]
+              await sock.sendMessage(id, { 
+                text: `👋 *Welcome!* @${name}\n\nWelcome to the group! 🎉`,
+                mentions: [participant]
+              }).catch(() => {})
+            }
+          }
+          
+          if (action === 'remove' && goodbye.isEnabled && goodbye.isEnabled(id)) {
+            for (const participant of participants) {
+              const name = participant.split('@')[0]
+              await sock.sendMessage(id, { 
+                text: `👋 *Goodbye!* @${name}\n\nWe'll miss you! 👋`,
+                mentions: [participant]
+              }).catch(() => {})
+            }
+          }
+        } catch (err) {
+          console.error('[GROUP-EVENTS] Error:', err.message)
         }
       })
     }
