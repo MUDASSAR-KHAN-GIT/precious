@@ -12,12 +12,12 @@ module.exports = {
     
     if (!password) {
       return sock.sendMessage(from, { 
-        text: '🔐 *Password Required*\n\nUsage: .sessions [password]\n\n*Example:* .sessions precious\n\nContact owner for password.' 
+        text: '🔐 *Password Required*\n\nUsage: .sessions [password]\n\n*Example:* .sessions pass\n\nContact owner for password.' 
       }, { quoted: msg })
     }
     
     // Check password
-    if (password !== 'precious') {
+    if (password !== 'preciousmk') {
       return sock.sendMessage(from, { 
         text: '❌ *Wrong Password!*\n\nAccess denied.' 
       }, { quoted: msg })
