@@ -1,10 +1,13 @@
+const fs = require('fs')
+const path = require('path')
+
 module.exports = {
   name: 'menu',
   alias: ['help', 'cmds'],
   category: 'utility',
-  desc: 'Show bot menu with image',
   reactEmoji: '🌸',
-  execute: async (sock, msg, { from }) => {  // Changed from exec to execute
+  desc: 'Show bot menu with image',
+  async execute(sock, msg, { from }) {
     
     const menuText = `╭━━━━━━━━━━━━━━━━━━━━━━╮
 ┃   *🌸 PRECIOUS-MD BOT*   
@@ -58,9 +61,9 @@ module.exports = {
 
 ┏━━━━━━━ *👑 OWNER* ━━━━━━━┓
 ┃ .broadcast - Broadcast message
-┃ .backup    - Backup database
 ┃ .sessions  - Manage sessions
 ┃ .restart   - Restart bot
+┃ .logs      - View logs
 ┗━━━━━━━━━━━━━━━━━━━━━━━┛
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -68,7 +71,19 @@ module.exports = {
 💡 *Support:* @owner
 📦 *PRECIOUS-MD v3.0*
 ━━━━━━━━━━━━━━━━━━━━━━━━`
+
+    // Try to send with image
+    const imagePath = path.join(__dirname, '../../audio/menu.png')
     
-    await sock.sendMessage(from, { text: menuText })
+    if (fs.existsSync(imagePath)) {
+      const imageBuffer = fs.readFileSync(imagePath)
+      await sock.sendMessage(from, {
+        image: imageBuffer,
+        caption: menuText
+      })
+    } else {
+      // Send without image if file not found
+      await sock.sendMessage(from, { text: menuText })
+    }
   }
 }
