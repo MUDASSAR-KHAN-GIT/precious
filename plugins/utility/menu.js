@@ -3,8 +3,8 @@ module.exports = {
   alias: ['help', 'cmds'],
   category: 'utility',
   desc: 'Show bot menu with image',
-  reactEmoji: '🌸',  // Added reaction emoji
-  async exec(sock, msg, { from }) {
+  reactEmoji: '🌸',
+  execute: async (sock, msg, { from }) => {  // Changed from exec to execute
     
     const menuText = `╭━━━━━━━━━━━━━━━━━━━━━━╮
 ┃   *🌸 PRECIOUS-MD BOT*   
@@ -68,8 +68,7 @@ module.exports = {
 💡 *Support:* @owner
 📦 *PRECIOUS-MD v3.0*
 ━━━━━━━━━━━━━━━━━━━━━━━━`
-
-    // Send menu (reaction will be handled by _loader.js automatically)
+    
     await sock.sendMessage(from, { text: menuText })
   }
 }
