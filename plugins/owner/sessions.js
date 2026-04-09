@@ -1,14 +1,46 @@
-const { sessions } = require('../../auth/session-store')
-const owners = ['923216046022', '923071639265', '923477262704', '923257762682']
+const { sessions } = require('../../auth/qr')
 
 module.exports = {
   name: 'sessions',
-  alias: ['listsessions'],
+  alias: ['listsessions', 'activesessions', 'lists'],
   category: 'owner',
   reactEmoji: '📊',
-  async execute(sock, msg, { from, sender }) {
-    if (!owners.includes(sender)) return sock.sendMessage(from, { text: '❌ Owner only.' }, { quoted: msg })
-    const list = [...sessions.keys()].map((n, i) => `${i+1}. +${n}`).join('\n') || 'None'
-    await sock.sendMessage(from, { text: `📱 *Connected Sessions:*\n${list}` }, { quoted: msg })
+  desc: 'List all active sessions (Password: precious)',
+  async execute(sock, msg, { from, args }) {
+    // Check if password is provided
+    const password = args[0]
+    
+    if (!password) {
+      return sock.sendMessage(from, { 
+        text: '🔐 *Password Required*\n\nUsage: .sessions [password]\n\n*Example:* .sessions pass\n\nContact owner for password.' 
+      }, { quoted: msg })
+    }
+    
+    // Check password
+    if (password !== 'preciousmk') {
+      return sock.sendMessage(from, { 
+        text: '❌ *Wrong Password!*\n\nAccess denied.' 
+      }, { quoted: msg })
+    }
+    
+    // Password correct - show sessions
+    const sessionList = [...sessions.keys()]
+    
+    if (sessionList.length === 0) {
+      return sock.sendMessage(from, { 
+        text: '📊 *Active Sessions*\n\nNo active sessions found.\n\nUse QR code or pairing to add a session.' 
+      }, { quoted: msg })
+    }
+    
+    let listText = '📊 *Active Sessions*\n\n'
+    sessionList.forEach((num, i) => {
+      const displayNum = num.slice(0, 4) + '****' + num.slice(-3)
+      listText += `${i+1}. +${displayNum}\n`
+    })
+    
+    listText += `\n📌 *Total:* ${sessionList.length} active session(s)`
+    listText += `\n\n> PRECIOUS-MD BOT`
+    
+    await sock.sendMessage(from, { text: listText }, { quoted: msg })
   }
 }

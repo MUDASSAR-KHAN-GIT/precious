@@ -1,34 +1,29 @@
-let autoViewActive = false
-let autoViewSessions = new Set()
+const enabledSessions = new Set()
 
 module.exports = {
   name: 'autoview',
-  alias: ['viewstatus'],
+  alias: ['viewstatus', 'autostatus'],
   category: 'automation',
   reactEmoji: '👁️',
+  desc: 'Auto view WhatsApp statuses with 🍂 reaction',
   async execute(sock, msg, { from, args, sessionNumber }) {
     const action = args[0]?.toLowerCase()
-    if (action === 'on') {
-      autoViewSessions.add(sessionNumber)
-      if (!autoViewActive) {
-        autoViewActive = true
-        // Status listener attached globally once (to avoid multiple listeners)
-        // In production, attach once per session. Simplified here.
-        sock.ev.on('messages.upsert', async ({ messages }) => {
-          for (const m of messages) {
-            if (m.message?.protocolMessage?.type === 7) { // status broadcast
-              await sock.readMessages([m.key])
-              await sock.sendMessage(m.key.remoteJid, { react: { text: '❤️', key: m.key } })
-            }
-          }
-        })
-      }
-      await sock.sendMessage(from, { text: '👁️ Auto-view & like enabled for statuses.' }, { quoted: msg })
-    } else if (action === 'off') {
-      autoViewSessions.delete(sessionNumber)
-      await sock.sendMessage(from, { text: '👁️ Auto-view disabled.' }, { quoted: msg })
-    } else {
-      await sock.sendMessage(from, { text: 'Usage: `.autoview on` or `.autoview off`' }, { quoted: msg })
+    
+    if (!action) {
+      const status = enabledSessions.has(sessionNumber) ? '✅ ON' : '❌ OFF'
+      await sock.sendMessage(from, { text: `🍂 *AutoView Status:* ${status}\n\n📌 *Usage:*\n.autoview on - Enable\n.autoview off - Disable\n\nWhen enabled, I will view and react to all statuses with 🍂` })
+      return
     }
-  }
+    
+    if (action === 'on') {
+      enabledSessions.add(sessionNumber)
+      await sock.sendMessage(from, { text: '🍂 *AutoView Enabled*\n\nI will now view and react to statuses with 🍂' })
+    } else if (action === 'off') {
+      enabledSessions.delete(sessionNumber)
+      await sock.sendMessage(from, { text: '🍂 *AutoView Disabled*' })
+    } else {
+      await sock.sendMessage(from, { text: '❌ Use: .autoview on  or  .autoview off' })
+    }
+  },
+  isEnabled: (sessionNumber) => enabledSessions.has(sessionNumber)
 }
