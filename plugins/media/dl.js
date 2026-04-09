@@ -74,7 +74,7 @@ module.exports = {
         throw new Error(data.message || 'Could not fetch media')
       }
 
-      // ✅ FIX: Get video URL from mediaInfo (not links array)
+      // Get video URL from mediaInfo
       let videoUrl = null
       let title = 'Video'
       
@@ -86,7 +86,6 @@ module.exports = {
         videoUrl = data.videoUrl
         console.log('[DL] Found videoUrl directly')
       } else if (data.links && data.links.length > 0) {
-        // Fallback to links if needed
         videoUrl = data.links[0]
         console.log('[DL] Using fallback link')
       }
@@ -110,13 +109,9 @@ module.exports = {
         throw new Error('Downloaded file too small')
       }
 
-      // Send as document with proper mimetype (more reliable than video)
-      const mimetype = videoResponse.headers.get('content-type') || 'video/mp4'
-      
+      // ✅ SEND AS VIDEO (playable) instead of document
       await sock.sendMessage(from, {
-        document: videoBuffer,
-        mimetype: mimetype,
-        fileName: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
+        video: videoBuffer,
         caption: `${platformEmoji} *${platformName} Download Complete!*\n\n📌 *Title:* ${title}\n📦 *Size:* ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB\n\n> PRECIOUS-MD BOT`
       })
       
