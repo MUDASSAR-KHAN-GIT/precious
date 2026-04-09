@@ -1,41 +1,38 @@
-const { downloadMedia, detectPlatform } = require('../../utils/downloader')
-const { sendLoadingMessage } = require('../../utils/message-helper')
-
 module.exports = {
   name: 'dl',
-  alias: ['download'],
+  alias: ['download', 'video'],
   category: 'media',
-  reactEmoji: '📥',
-  async execute(sock, msg, { from, args }) {
-    const link = args[0]
-    if (!link) {
-      await sock.sendMessage(from, { text: '❌ Usage: `.dl <link>`\nSupported: YouTube, TikTok, Instagram, Pinterest, Twitter, Facebook' }, { quoted: msg })
+  desc: 'Download videos from YouTube, Instagram, TikTok, etc.',
+  async exec(sock, msg, { from, args }) {
+    if (!args.length) {
+      await sock.sendMessage(from, { text: '❌ *Usage:* .dl [URL]\n\n*Example:* .dl https://youtu.be/xxxxx' })
       return
     }
-    const platform = detectPlatform(link)
-    if (!platform) {
-      await sock.sendMessage(from, { text: '❌ Unsupported platform' }, { quoted: msg })
-      return
-    }
-    const loading = await sendLoadingMessage(sock, from, `Downloading from ${platform}...`)
+
+    const url = args[0]
+    
+    // Send processing message
+    await sock.sendMessage(from, { text: '⏳ *Downloading...* Please wait.' })
+
     try {
-      const { filePath, title, isVideo } = await downloadMedia(link, platform)
-      const fs = require('fs')
-      if (isVideo) {
-        await sock.sendMessage(from, {
-          video: fs.readFileSync(filePath),
-          caption: `✅ *${title}*\n_Downloaded by PRECIOUS-MD_`
-        }, { quoted: msg })
-      } else {
-        await sock.sendMessage(from, {
-          image: fs.readFileSync(filePath),
-          caption: `✅ *${title}*\n_Downloaded by PRECIOUS-MD_`
-        }, { quoted: msg })
+      const response = await fetch(`https://batgpt.vercel.app/api/alldl?url=${encodeURIComponent(url)}`)
+      const data = await response.json()
+
+      if (!data.success || !data.mediaInfo) {
+        throw new Error('Failed to get media info')
       }
-      fs.unlinkSync(filePath)
+
+      const { title, videoUrl, platform } = data.mediaInfo
+
+      // Send video
+      await sock.sendMessage(from, {
+        video: { url: videoUrl },
+        caption: `📥 *Download Complete!*\n\n📌 *Title:* ${title}\n📱 *Platform:* ${platform}\n\n> PRECIOUS-MD BOT`
+      })
+
     } catch (err) {
-      await sock.sendMessage(from, { text: `❌ Download failed: ${err.message}` }, { quoted: msg })
+      console.error('Download error:', err)
+      await sock.sendMessage(from, { text: `❌ *Error:* Failed to download.\n\nMake sure URL is valid and supported.\n\n*Supported platforms:* YouTube, Instagram, TikTok, Facebook, Twitter` })
     }
-    if (loading) await sock.sendMessage(from, { delete: loading.key })
   }
 }
