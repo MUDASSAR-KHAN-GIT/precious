@@ -1,36 +1,75 @@
-const { commands, categories } = require('../_loader')
-
 module.exports = {
   name: 'menu',
-  alias: ['help', 'commands', 'cmdlist'],
+  alias: ['help', 'cmds'],
   category: 'utility',
-  desc: 'Show all available commands',
-  async exec(sock, msg, { from, sender, args }) {
+  desc: 'Show bot menu with image',
+  reactEmoji: '🌸',  // Added reaction emoji
+  async exec(sock, msg, { from }) {
     
-    let menuText = `╭━━━━━━━━━━━━━━━━━╮\n`
-    menuText += `┃ *🌸 PRECIOUS-MD BOT* ┃\n`
-    menuText += `╰━━━━━━━━━━━━━━━━━╯\n\n`
-    menuText += `*🤖 Status:* ✅ Active\n`
-    menuText += `*📊 Total Commands:* ${commands.size}\n`
-    menuText += `*⚡ Prefix:* .\n\n`
-    
-    const cats = [...categories.keys()]
-    
-    for (const cat of cats) {
-      menuText += `\n┏━━━ *${cat.toUpperCase()}* ━━━┓\n`
-      const cmds = categories.get(cat)
-      for (const cmd of cmds) {
-        const cmdData = commands.get(cmd)
-        if (cmdData && !cmdData.isAlias) {
-          menuText += `┃  .${cmd}\n`
-        }
-      }
-      menuText += `┗━━━━━━━━━━━━━━━━━┛\n`
-    }
-    
-    menuText += `\n*📌 Example:* .ping\n`
-    menuText += `*💡 Info:* .alive | .about | .status\n`
-    
+    const menuText = `╭━━━━━━━━━━━━━━━━━━━━━━╮
+┃   *🌸 PRECIOUS-MD BOT*   
+┃   *🤖 Version:* 3.0.0
+╰━━━━━━━━━━━━━━━━━━━━━━╯
+
+*⚡ Prefix:* . (dot)
+*📊 Status:* ✅ Active
+*🎯 Commands:* 50+
+
+┏━━━━━━━ *📱 BASIC* ━━━━━━━┓
+┃ .ping      - Check latency
+┃ .alive     - Bot status  
+┃ .menu      - Show menu
+┃ .about     - Bot info
+┃ .owner     - Owner contact
+┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+┏━━━━━━━ *🎵 MEDIA* ━━━━━━━┓
+┃ .sticker   - Image to sticker
+┃ .toimg     - Sticker to image
+┃ .tourl     - Upload to URL
+┃ .dl        - Download video
+┃ .ytmp3     - YouTube to MP3
+┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+┏━━━━━━━ *👥 GROUP* ━━━━━━━┓
+┃ .tagall    - Mention all
+┃ .welcome   - Toggle welcome
+┃ .goodbye   - Toggle goodbye
+┃ .antilink  - Toggle anti-link
+┃ .kick      - Remove member
+┃ .promote   - Make admin
+┃ .demote    - Remove admin
+┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+┏━━━━━━━ *🤖 AI* ━━━━━━━┓
+┃ .chat      - ChatGPT AI
+┃ .imagine   - Generate image
+┃ .tts       - Text to speech
+┃ .translate - Translate text
+┗━━━━━━━━━━━━━━━━━━━━━━┛
+
+┏━━━━━━━ *🎮 GAMES* ━━━━━━━┓
+┃ .dice      - Roll dice
+┃ .quiz      - Play quiz
+┃ .truth     - Truth question
+┃ .dare      - Dare challenge
+┃ .rps       - Rock paper scissors
+┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+┏━━━━━━━ *👑 OWNER* ━━━━━━━┓
+┃ .broadcast - Broadcast message
+┃ .backup    - Backup database
+┃ .sessions  - Manage sessions
+┃ .restart   - Restart bot
+┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+📌 *Example:* .ping
+💡 *Support:* @owner
+📦 *PRECIOUS-MD v3.0*
+━━━━━━━━━━━━━━━━━━━━━━━━`
+
+    // Send menu (reaction will be handled by _loader.js automatically)
     await sock.sendMessage(from, { text: menuText })
   }
-      }
+}
