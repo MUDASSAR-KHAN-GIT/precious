@@ -3,15 +3,11 @@ const path = require('path')
 
 module.exports = {
   name: 'mention',
-  alias: [],
   category: 'automation',
-  desc: 'Send audio when someone mentions the bot',
-  async execute(sock, msg, { from, sender }) {
-    // This is handled automatically in the message handler
-    // See _loader.js update below
-  },
+  desc: 'Send audio when bot is mentioned',
   async handleMention(sock, msg, from, sender, botNumber) {
     try {
+      // Path to audio file
       const audioPath = path.join(__dirname, '../../audio/dev.mp3')
       
       if (fs.existsSync(audioPath)) {
@@ -22,9 +18,14 @@ module.exports = {
           mimetype: 'audio/mpeg',
           ptt: true // Sends as voice note
         })
-        console.log(`[MENTION] Sent audio to ${from} for mention by ${sender}`)
+        console.log(`[MENTION] Sent audio reply to ${from} (mentioned by ${sender})`)
       } else {
-        console.log('[MENTION] Audio file not found at:', audioPath)
+        console.log('[MENTION] Audio file not found:', audioPath)
+        // Optional: Send text reply if audio missing
+        await sock.sendMessage(from, { 
+          text: `🔊 *I was mentioned!*\n\nHello @${sender.split('@')[0]}! How can I help you?`,
+          mentions: [sender]
+        }).catch(() => {})
       }
     } catch (err) {
       console.error('[MENTION] Error sending audio:', err.message)
